@@ -1,0 +1,172 @@
+# Weather_API_App☀
+import sys  # Used for command-line arguments and clean application exit
+import os # Used to set environemnt variables for QT platform 
+import requests  # Used to send HTTP requests to the weather API
+from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout)  # GUI widgets and layout tools
+from PyQt5.QtCore import Qt  # Provides alignment constants
+from dotenv import load_dotenv # Used to load environement variables from .env file
+
+class WeatherApp(QWidget):  # Main application window inheriting from QWidget
+    def __init__(self):
+        super().__init__()  # Initializes QWidget internals so the window can function
+        self.city_label = QLabel("Enter a city name:", self)  # Instruction label for the user
+        self.city_input = QLineEdit(self)  # Text box where the user types the city name
+        self.get_weather_button = QPushButton("Get Weather", self)  # Button to trigger API request
+        self.temperature_label = QLabel(self)  # Displays temperature or error messages
+        self.emoji_label = QLabel(self)  # Displays weather emoji
+        self.description_label = QLabel(self)  # Displays weather description text
+        self.initUI()  # Builds layout and connects logic
+
+    def initUI(self):
+        self.setWindowTitle("Weather App")  # Sets the window title
+
+        vbox = QVBoxLayout()  # Vertical layout to stack widgets
+        vbox.addWidget(self.city_label)
+        vbox.addWidget(self.city_input)
+        vbox.addWidget(self.get_weather_button)
+        vbox.addWidget(self.temperature_label)
+        vbox.addWidget(self.emoji_label)
+        vbox.addWidget(self.description_label)
+
+        self.setLayout(vbox)  # Applies layout to the window
+
+        self.city_input.setAlignment(Qt.AlignHCenter)  # Centers typed city text
+        self.city_label.setAlignment(Qt.AlignHCenter)  # Centers label text
+        self.temperature_label.setAlignment(Qt.AlignHCenter)  # Centers temperature output
+        self.emoji_label.setAlignment(Qt.AlignHCenter)  # Centers emoji display
+        self.description_label.setAlignment(Qt.AlignHCenter)  # Centers description text
+
+        self.city_input.setObjectName("city_input")  # Used for stylesheet targeting
+        self.city_label.setObjectName("city_label")  # Used for stylesheet targeting
+        self.get_weather_button.setObjectName("get_weather_button")  # Used for stylesheet targeting
+        self.temperature_label.setObjectName("temperature_label")  # Used for stylesheet targeting
+        self.emoji_label.setObjectName("emoji_label")  # Used for stylesheet targeting
+        self.description_label.setObjectName("description_label")  # Used for stylesheet targeting
+
+        self.setStyleSheet("""
+            QLabel, QPushButton{
+                font-family: calibri;
+            }
+            QLabel#city_label{
+                font-size: 40px;
+                font-style: italic;
+            }
+            QLineEdit#city_input{
+                font-size: 40px;
+            }
+            QPushButton#get_weather_button{
+                font-size: 30px;
+                font-weight: bold;
+            }
+            QLabel#temperature_label{
+                font-size: 75px;
+            }
+            QLabel#emoji_label{
+                font-size: 100px;
+                font-family: Segoe UI emoji;
+            }
+            QLabel#description_label{
+                font-size: 50px;
+            }
+        """)
+
+        self.get_weather_button.clicked.connect(self.get_weather)  # Runs get_weather() when button is clicked
+
+    def get_weather(self):
+        global response  # Allows access to response inside exception matching
+        load_dotenv() # Loads variables from .env file
+        api_key = os.getenv("OPENWEATHERMAP_API_KEY")  # Retrieves API key from environment variable
+        if not api_key:
+            raise ValueError("API key not found. Set WEATHER_API_KEY in env. file.") # Checks if API key is available, otherwise raise ValueError.
+        city = self.city_input.text()  # Retrieves user-entered city name
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}"  # API request URL
+
+        try:
+            response = requests.get(url)  # Sends GET request to weather API
+            response.raise_for_status()  # Raises exception for HTTP errors
+            data = response.json()  # Converts JSON response into a Python dictionary
+
+            if data["cod"] == 200:  # Confirms successful API response
+                self.display_weather(data)  # Displays weather info
+
+        except requests.exceptions.HTTPError as HTTPError:  # Handles HTTP errors (4xx–5xx)
+            match response.status_code:  # Matches specific HTTP error codes
+                case 400:
+                    self.display_error("Bad request:\nPlease check your input")
+                case 401:
+                    self.display_error("Unauthorized:\nInvalid API key")
+                case 403:
+                    self.display_error("Forbidden:\nAccess is denied")
+                case 404:
+                    self.display_error("Not Found:\nCity is not found")
+                case 500:
+                    self.display_error("Internal Server Error:\nPlease try again later")
+                case 502:
+                    self.display_error("Bad Gateway:\nInvalid reponse from the server")
+                case 503:
+                    self.display_error("Service Unavailable:\nServer is Down")
+                case 504:
+                    self.display_error("Gateway Timeout:\nNo response from the server")
+                case _:
+                    self.display_error(f"HTTP Error occurred:\n{HTTPError}")
+
+        except requests.exceptions.ConnectionError:
+            self.display_error("Connection Error:\nCheck your internet Connection")
+
+        except requests.exceptions.Timeout:
+            self.display_error("Timeout Error:\nThe request timed out")
+
+        except requests.exceptions.TooManyRedirects:
+            self.display_error("Too many Redirects:\nCheck the URL")
+
+        except requests.exceptions.RequestException as req_error:  # Catches all remaining request-related issues
+            self.display_error(f"Request Error:\n{req_error}")
+
+    def display_error(self, message):
+        self.temperature_label.setStyleSheet("font-size: 30px;")  # Shrinks text size for error messages
+        self.temperature_label.setText(message)  # Displays error message
+        self.emoji_label.clear()  # Clears previous emoji
+        self.description_label.clear()  # Clears previous description
+
+    def display_weather(self, data):
+        self.temperature_label.setStyleSheet("font-size: 75px;")  # Restores large font for temperature
+        temperature_k = data["main"]["temp"]  # Temperature returned in Kelvin
+        temperature_c = temperature_k - 273.15  # Converts Kelvin to Celsius
+        temperature_f = (temperature_k * 9/5) - 459.67  # Converts Kelvin to Fahrenheit
+        weather_id = data["weather"][0]["id"]  # Weather condition ID
+        weather_description = data["weather"][0]["description"]  # Text description of weather
+        self.temperature_label.setText(f"{temperature_f:.01f}°F")  # Displays Fahrenheit temperature
+#        self.temperature_label.setText(f"{temperature_c:.01f}°C")
+        self.emoji_label.setText(self.get_weather_emoji(weather_id))  # Displays emoji based on weather ID
+        self.description_label.setText(weather_description)  # Displays description text
+
+    @staticmethod
+    def get_weather_emoji(weather_id):  # Determines emoji based on weather condition ID
+        if 200 <= weather_id <= 232:
+            return "⛈"
+        elif 300 <= weather_id <= 321:
+            return "🌥️"
+        elif 500 <= weather_id <= 531:
+            return "🌧️"
+        elif 600 <= weather_id <= 622:
+            return "❄"
+        elif 701 <= weather_id <= 741:
+            return "🌫️"
+        elif weather_id == 762:
+            return "🌋"
+        elif weather_id == 771:
+            return "💨"
+        elif weather_id == 781:
+            return "🌪️"
+        elif weather_id == 800:
+            return "☀"
+        elif 801 <= weather_id <= 804:
+            return "☁"
+        else:
+            return ""
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)  # Initializes the Qt application and processes startup arguments
+    weather_app = WeatherApp()  # Creates the weather app window
+    weather_app.show()  # Displays the window
+    sys.exit(app.exec_())  # Starts the event loop and exits cleanly when closed
