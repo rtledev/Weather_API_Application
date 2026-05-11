@@ -25,3 +25,15 @@ This project is currently written in a **single Python file**.
 
 ```bash
 Weather_API_App.py
+
+
+## API Key Setup
+
+This project uses the OpenWeatherMap API.
+
+1. Create a free account at https://openweathermap.org/api
+2. Generate an API key
+3. Create a `.env` file in the project root
+4. Add the following:
+
+OPENWEATHERMAP_API_KEY=your_api_key_here
