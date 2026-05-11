@@ -25,7 +25,7 @@ This project is currently written in a **single Python file**.
 
 ```bash
 Weather_API_App.py
-
+```
 
 ## API Key Setup
 
